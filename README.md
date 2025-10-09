@@ -26,7 +26,6 @@ Input is `City;Value` lines, output is min/mean/max per city.
   - `src/` — main source
   - `build.zig` — build configuration
 - `datasets/` — input data (not committed if very large)
-- `benchmarks/` — raw results, summaries, charts
 
 
 ## Quick Start
@@ -60,19 +59,18 @@ Capture hardware, OS, toolchain, and dataset so results are comparable.
 |---|---|---|---|
 | 000 | python | 631.8175502618154 | Baseline |
 
-Store full details and raw outputs in `benchmarks/` with matching Run ID.
 
-
-## Optimization Ideas & Roadmap
+## Optimization Roadmap
 
 ### Python
 
 ### Zig
 
-## Data Management
+## Data Management (git ignored due to size)
 
-- Default path: `datasets/measurements.txt` (git ignored due to size)
+- Default path: `datasets/measurements.txt`
 - Small correctness set: `datasets/10mill.txt`.
+- Answer set : `datasets/answer.txt`
 
 
 ## Scripts

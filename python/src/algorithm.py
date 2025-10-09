@@ -47,22 +47,14 @@ if __name__ == "__main__":
     oneBil = "../data/measurements.txt"
     chosenPath = oneBil
 
-    results: list[float] = [0.0] * 5
+    results: float = 0.0
     print("starting...")
 
-    for i in range(5):
-        startTime: float = time.time()
-        processedData = processData(chosenPath)
-        createOutput(processedData)
+    startTime: float = time.time()
+    processedData = processData(chosenPath)
+    _ = createOutput(processedData)
 
-        endTime: float = time.time()
-        results[i] = endTime - startTime
-        print("completed run ", i + 1)
+    endTime: float = time.time()
+    results = endTime - startTime
 
-    print("Times per run:")
-    for resultedTime in results:
-        print(resultedTime)
-
-    results.sort()
-    finalTime = sum(results[:3]) / 3.0
-    print("Final Time : ", finalTime)
+    print(f"completed run : {results}")
