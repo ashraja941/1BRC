@@ -43,6 +43,15 @@ def createOutput(stationDict: defaultdict[str, list[Any]]):
     return "{" + ", ".join(output) + "}"
 
 
+def write_output(output: str, out_path: str):
+    """
+    Saves the final result to a file.
+    """
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(output)
+        f.write("\n")
+
+
 if __name__ == "__main__":
     answer = "../data/answers.txt"
     tenMilPath = "../data/10mil.txt"
@@ -55,6 +64,8 @@ if __name__ == "__main__":
     startTime: float = time.time()
     processedData = processData(chosenPath)
     output = createOutput(processedData)
+
+    write_output(output, "../data/python-output-latest.txt")
 
     endTime: float = time.time()
     results = endTime - startTime
