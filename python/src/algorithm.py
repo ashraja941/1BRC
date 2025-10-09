@@ -1,11 +1,10 @@
 from collections import defaultdict
 import time
-from typing import Any
 from tqdm import tqdm
 
 
 def processData(path: str):
-    stationDict: defaultdict[str, list[Any]] = defaultdict(
+    stationDict: defaultdict[str, list[float]] = defaultdict(
         lambda: [float("inf"), float("-inf"), 0, 0]
     )
 
@@ -27,29 +26,23 @@ def processData(path: str):
     return stationDict
 
 
-def ceilDiv(a: int, b: int) -> int:
-    return (a + b - 1) // b
-
-
-def createOutput(stationDict: defaultdict[str, list[Any]]):
+def createOutput(stationDict: defaultdict[str, list[float]]):
     output: list[str] = []
     for stationName in sorted(stationDict.keys()):
         minVal, maxVal, total, count = stationDict[stationName]
         minVal /= 10.0
         maxVal /= 10.0
-        meanVal = ceilDiv(total, count) / 10.0
+        # meanVal = ceilDiv(total, count) / 10.0
+        meanVal = (total / count) / 10.0
         output.append(f"{stationName}={minVal:.1f}/{meanVal:.1f}/{maxVal:.1f}")
 
     return "{" + ", ".join(output) + "}"
 
 
 def write_output(output: str, out_path: str):
-    """
-    Saves the final result to a file.
-    """
     with open(out_path, "w", encoding="utf-8") as f:
-        f.write(output)
-        f.write("\n")
+        _ = f.write(output)
+        _ = f.write("\n")
 
 
 if __name__ == "__main__":
@@ -73,7 +66,7 @@ if __name__ == "__main__":
     print(f"completed run : {results} seconds")
 
     with open(answer, "r") as f:
-        answerOutput = f.read()
+        answerOutput = f.read().strip()
         if output == answerOutput:
             print("Output matches answer")
         else:
