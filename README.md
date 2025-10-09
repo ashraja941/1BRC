@@ -56,8 +56,8 @@ Capture hardware, OS, toolchain, and dataset so results are comparable.
 
 ## Results Snapshot
 
-| Run ID | Lang | Elapsed (s) | | Notes |
-|---|---|---|---|---|---|---:|---:|---|
+| Run ID | Lang | Elapsed (s) | Notes |
+|---|---|---|---|
 | 000 | python | 631.8175502618154 | Baseline |
 
 Store full details and raw outputs in `benchmarks/` with matching Run ID.
