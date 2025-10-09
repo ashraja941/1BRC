@@ -24,7 +24,10 @@ def compare(dict1, dict2):
 
 
 if __name__ == "__main__":
-    with open("data/answers.txt") as f1, open("data/python-output-latest.txt") as f2:
+    with (
+        open("../data/answers.txt") as f1,
+        open("../data/python-output-latest.txt") as f2,
+    ):
         dict1 = parse_data(f1.read())
         dict2 = parse_data(f2.read())
 
