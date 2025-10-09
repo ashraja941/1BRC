@@ -56,10 +56,9 @@ Capture hardware, OS, toolchain, and dataset so results are comparable.
 
 ## Results Snapshot
 
-| Run ID | Date | Commit | Lang | Variant | Dataset | Elapsed (s) | Peak RSS (MB) | Notes |
+| Run ID | Lang | Elapsed (s) | | Notes |
 |---|---|---|---|---|---|---:|---:|---|
-| 000 | YYYY-MM-DD | abcdef0 | python | baseline | 1B rows | TBD | TBD | initial scaffold |
-| 001 | YYYY-MM-DD | abcdef1 | zig | baseline | 1B rows | TBD | TBD | initial scaffold |
+| 000 | python | 631.8175502618154 | Baseline |
 
 Store full details and raw outputs in `benchmarks/` with matching Run ID.
 
@@ -72,7 +71,7 @@ Store full details and raw outputs in `benchmarks/` with matching Run ID.
 
 ## Data Management
 
-- Default path: `datasets/measurements.txt` (git ignored due to size) 
+- Default path: `datasets/measurements.txt` (git ignored due to size)
 - Small correctness set: `datasets/10mill.txt`.
 
 
