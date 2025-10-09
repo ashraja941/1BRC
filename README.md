@@ -46,7 +46,7 @@ Capture hardware, OS, toolchain, and dataset so results are comparable.
 - RAM: 16 GB
 - Storage: NVMe
 - Python: `3.12.3`,
-- Zig: `15.1`
+- Zig: `0.15.1`
 
 ## Benchmarking Methodology
 - Run each benchmark 5 times
