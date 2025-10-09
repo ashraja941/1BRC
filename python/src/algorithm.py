@@ -1,6 +1,7 @@
 from collections import defaultdict
 import time
 from typing import Any
+from tqdm import tqdm
 
 
 def processData(path: str):
@@ -9,7 +10,7 @@ def processData(path: str):
     )
 
     with open(path, "r") as f:
-        for line in f:
+        for line in tqdm(f):
             try:
                 stationName, temperature = line.strip().split(";")
             except ValueError:
@@ -43,6 +44,7 @@ def createOutput(stationDict: defaultdict[str, list[Any]]):
 
 
 if __name__ == "__main__":
+    answer = "../data/answers.txt"
     tenMilPath = "../data/10mil.txt"
     oneBil = "../data/measurements.txt"
     chosenPath = oneBil
@@ -52,9 +54,16 @@ if __name__ == "__main__":
 
     startTime: float = time.time()
     processedData = processData(chosenPath)
-    _ = createOutput(processedData)
+    output = createOutput(processedData)
 
     endTime: float = time.time()
     results = endTime - startTime
 
-    print(f"completed run : {results}")
+    print(f"completed run : {results} seconds")
+
+    with open(answer, "r") as f:
+        answerOutput = f.read()
+        if output == answerOutput:
+            print("Output matches answer")
+        else:
+            print("Output does not match answer")
