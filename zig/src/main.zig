@@ -1,12 +1,12 @@
 const std = @import("std");
 const print = std.debug.print;
 
-const hmentry = struct {
+const HashMapEntry = struct {
     key: []const u8,
     val: [4]f64,
 };
 
-fn lessThan(_: void, lhs: hmentry, rhs: hmentry) bool {
+fn lessThan(_: void, lhs: HashMapEntry, rhs: HashMapEntry) bool {
     return std.mem.lessThan(u8, lhs.key, rhs.key);
 }
 
@@ -41,10 +41,16 @@ fn deinitHashMap(allocator: std.mem.Allocator, hashMap: *std.StringHashMap([4]f6
     hashMap.deinit();
 }
 
-pub fn main() !void {
+pub fn run() !void {
+    print("starting...\n", .{});
+    
+    const startTime = std.time.milliTimestamp();
     const cwd = std.fs.cwd();
     const file = try cwd.openFile("../data/measurements.txt", .{ .mode = .read_only });
     defer file.close();
+
+    const outFile = try cwd.createFile("../data/zig-output-latest.txt", .{});
+    defer outFile.close();
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -57,12 +63,17 @@ pub fn main() !void {
     var fileReader = file.reader(&buf);
     const reader = &fileReader.interface;
 
+    var outBuf: [1024]u8 = undefined;
+    var fileWriter = outFile.writer(&outBuf);
+    const writer = &fileWriter.interface;
+    try writer.print("{{", .{});
+
     while (true) {
         const line = reader.takeDelimiterExclusive('\n') catch break;
         try processLine(allocator, line, &hashMap);
     }
 
-    var entries = try std.ArrayList(hmentry).initCapacity(allocator, 20);
+    var entries = try std.ArrayList(HashMapEntry).initCapacity(allocator, 20);
     defer entries.deinit(allocator);
 
     var it = hashMap.iterator();
@@ -70,10 +81,20 @@ pub fn main() !void {
         try entries.append(allocator, .{ .key = entry.key_ptr.*, .val = entry.value_ptr.* });
     }
 
-    std.mem.sort(hmentry, entries.items, {}, lessThan);
+    std.mem.sort(HashMapEntry, entries.items, {}, lessThan);
 
     for (entries.items) |entry| {
         const avg = entry.val[2] / entry.val[3];
-        print("{s}: min={d:.2}, max={d:.2}, avg={d:.2}\n", .{ entry.key, entry.val[0], entry.val[1], avg });
+        // print("{s}={d:.1}/{d:.1}/{d:.1}\n", .{ entry.key, entry.val[0], entry.val[1], avg });
+        try writer.print("{s}={d:.1}/{d:.1}/{d:.1},", .{ entry.key, entry.val[0], avg, entry.val[1] });
+        try writer.flush();
     }
+    try writer.print("}}", .{});
+    const endTime = std.time.milliTimestamp();
+    const duration = @divFloor((endTime - startTime), 1000);
+    print("Execution time: {d} seconds\n", .{duration});
+}
+
+pub fn main() !void {
+    try run();
 }
