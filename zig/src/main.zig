@@ -43,7 +43,7 @@ fn deinitHashMap(allocator: std.mem.Allocator, hashMap: *std.StringHashMap([4]f6
 
 pub fn run() !void {
     print("starting...\n", .{});
-    
+
     const startTime = std.time.milliTimestamp();
     const cwd = std.fs.cwd();
     const file = try cwd.openFile("../data/measurements.txt", .{ .mode = .read_only });
