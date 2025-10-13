@@ -27,7 +27,7 @@ Input is `City;Value` lines, output is min/mean/max per city.
 | Run ID | Lang | Elapsed (s) | Notes |
 |---|---|---|---|
 | 000 | python | 631.8175502618154 | Baseline |
-| 001 | python | 36.72282719612121 | multithreading |
+| 001 | python | 189.9260991414388 | multithreading |
 | 002 | python | 29.86254239082336 | Polars |
 
 

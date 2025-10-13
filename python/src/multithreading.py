@@ -122,6 +122,13 @@ def write_output(output: str, out_path: str):
         _ = f.write("\n")
 
 
+def runMutltiProcessing(chosenPath: str):
+    cpuCount, startEnd = getFileChunks(chosenPath)
+    processedData = mergeChunkResults(cpuCount, startEnd)
+    output = createOutput(processedData)
+    return output
+
+
 if __name__ == "__main__":
     answer = "../data/answers.txt"
     tenMilPath = "../data/10mil.txt"
@@ -132,10 +139,7 @@ if __name__ == "__main__":
     print("starting...")
 
     startTime: float = time.time()
-    cpuCount, startEnd = getFileChunks(chosenPath)
-    processedData = mergeChunkResults(cpuCount, startEnd)
-    output = createOutput(processedData)
-
+    output = runMutltiProcessing(chosenPath)
     write_output(output, "../data/python-output-latest.txt")
 
     endTime: float = time.time()
