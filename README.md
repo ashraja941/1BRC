@@ -58,11 +58,21 @@ Capture hardware, OS, toolchain, and dataset so results are comparable.
 | Run ID | Lang | Elapsed (s) | Notes |
 |---|---|---|---|
 | 000 | python | 631.8175502618154 | Baseline |
+| 001 | python | 29.86254239082336 | Polars |
 
 
 ## Optimization Roadmap
 
 ### Python
+
+#### Polars
+Polars is a rust based library that aims to replace pythons well known pandas as it inherently supports multithreading. 
+
+Using Polars is a little "Cheating" because we offload all the work of coding and optimizations and leave it to a package with a different language runtime. The goal of this project for me is not to get the fastest time but to learn about different optimization techniques and ways to implement them.
+
+The reasont that this package is prefered over native multithreading in python is because python can only have 1 thread running at the same time due to the Global Interpreter Lock (GIL). Therefore while this can be useful for IO bound application, such as this one, it will not have the same performance jump expected as we would still be running the analysis line by line. I will still get back and try to use a pool of threads to better the time.
+
+I believe that a later version of python is working on removing the GIL in favor of true multi threading and a Just in Time Compiler, and I want to try that out when I get the chance.
 
 ### Zig
 
