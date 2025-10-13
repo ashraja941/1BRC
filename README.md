@@ -27,25 +27,36 @@ Input is `City;Value` lines, output is min/mean/max per city.
 | Run ID | Lang | Elapsed (s) | Notes |
 |---|---|---|---|
 | 000 | python | 631.8175502618154 | Baseline |
-| 001 | python | 29.86254239082336 | Polars |
+| 001 | python | 36.72282719612121 | multithreading |
+| 002 | python | 29.86254239082336 | Polars |
 
 
 ## Optimization Roadmap
 
 ### Python
 #### Baseline
-The baseline implementation is simple and goes line by line through the entire file and uses a dictionary that maintians the min, mean, sum and count of every station visited. Finally we sort the keys in the hashMap (station Name) and then store the final output. 
+The baseline implementation is simple and goes line by line through the entire file and uses a dictionary that maintians the min, mean, sum and count of every station visited. Finally we sort the keys in the hashMap (station Name) and then store the final output.
 
 Some optimizations have been done such as using a fixed size array for the min, mean and max values, this will make sure that we have continguous memory and there aren't any unneccessary memory copies. This can be made faster with the use of numpy and I will try that next.
 
+#### Multi Processing
+This method is different from multithreading, Here python spawns a new OS level process for each process, thereby having a larger overhead but enable true parallelism.
+
+I start out by splitting the data into chunks, by roughly splitting the data into a certain number of parts and then reading back the data till we reach a new line character, therefore we know that the entire line is intact and we can process it just fine. Next we create a pool of processes and get the results back from each one and merge them all before sorting the keys and storing the final output.
+
+I use the pool.startMap function to pass in multiple arguments to the function that will be executed in parallel.
+
+a couple of optimizations done here include accessing the file through bytes, so that we can seek through the file efficiently.
+
 #### Polars
-Polars is a rust based library that aims to replace pythons well known pandas as it inherently supports multithreading. 
+Polars is a rust based library that aims to replace pythons well known pandas as it inherently supports multithreading.
 
 Using Polars is a little "Cheating" because we offload all the work of coding and optimizations and leave it to a package with a different language runtime. The goal of this project for me is not to get the fastest time but to learn about different optimization techniques and ways to implement them.
 
 The reasont that this package is prefered over native multithreading in python is because python can only have 1 thread running at the same time due to the Global Interpreter Lock (GIL). Therefore while this can be useful for IO bound application, such as this one, it will not have the same performance jump expected as we would still be running the analysis line by line. I will still get back and try to use a pool of threads to better the time.
 
 I believe that a later version of python is working on removing the GIL in favor of true multi threading and a Just in Time Compiler, and I want to try that out when I get the chance.
+
 
 ### Zig
 
