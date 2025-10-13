@@ -1,4 +1,5 @@
 from src.algorithm import processData, createOutput
+from src.polarsImplementation import run
 
 import time
 
@@ -12,8 +13,10 @@ if __name__ == "__main__":
 
     for i in range(5):
         startTime: float = time.time()
-        processedData = processData(chosenPath)
-        output = createOutput(processedData)
+        # processedData = processData(chosenPath)
+        # output = createOutput(processedData)
+
+        output = run(chosenPath)
 
         endTime: float = time.time()
         results[i] = endTime - startTime
