@@ -64,6 +64,11 @@ Capture hardware, OS, toolchain, and dataset so results are comparable.
 
 ### Python
 
+#### Baseline
+The baseline implementation is simple and goes line by line through the entire file and uses a dictionary that maintians the min, mean, sum and count of every station visited. Finally we sort the keys in the hashMap (station Name) and then store the final output. 
+
+Some optimizations have been done such as using a fixed size array for the min, mean and max values, this will make sure that we have continguous memory and there aren't any unneccessary memory copies. This can be made faster with the use of numpy and I will try that next.
+
 ### Zig
 
 ## Data Management (git ignored due to size)
