@@ -28,7 +28,8 @@ Input is `City;Value` lines, output is min/mean/max per city.
 |---|---|---|---|
 | 000 | python | 631.8175502618154 | Baseline |
 | 001 | python | 189.9260991414388 | multithreading |
-| 002 | python | 29.86254239082336 | Polars |
+| 002 | python | 162.7257560888926 | multithreading + micro opts |
+| 003 | python | 29.86254239082336 | Polars |
 
 
 ## Optimization Roadmap
@@ -47,6 +48,10 @@ I start out by splitting the data into chunks, by roughly splitting the data int
 I use the pool.startMap function to pass in multiple arguments to the function that will be executed in parallel.
 
 a couple of optimizations done here include accessing the file through bytes, so that we can seek through the file efficiently.
+
+Some micro optimizations include removing write access to the file, reducing the number of bytestring to string conversions (doing it only once at the very end). disabled garbage collection for the time of processing chunk, and re enable it afterwards. Using memory map to reduce the number of syscalls. 
+
+Memory mapping copies a window of the file to the RAM and avoids copying the data from kernel space to user space multiple times.
 
 #### Polars
 Polars is a rust based library that aims to replace pythons well known pandas as it inherently supports multithreading.
