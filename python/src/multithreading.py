@@ -74,7 +74,14 @@ def processChunk(path: str, start: int, end: int):
                 break
 
             try:
+                # sep = line.find(b";")
+                # if sep == -1:
+                #     continue
+                # stationName: ByteString = line[:sep]
+                # temperature: ByteString | int = line[sep + 1 :]
+
                 stationName, temperature = line.strip().split(b";")
+
             except ValueError:
                 print("ValueError")
                 continue
