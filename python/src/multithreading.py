@@ -1,6 +1,7 @@
 import os
 import multiprocessing as mp
 from gc import enable, disable
+import mmap
 
 from collections import defaultdict
 import time
@@ -26,7 +27,6 @@ def getFileChunks(
     chunkSize = fileSize // cpuCount
 
     startEnd: list[tuple[str, int, int]] = list()
-    with open(filePath, "r+b") as f:
     with open(filePath, "rb") as f:
 
         def isNewLine(position: int) -> bool:
@@ -62,13 +62,15 @@ def initDefaultDict():
 def processChunk(path: str, start: int, end: int):
     stationDict: defaultdict[ByteString, list[float]] = defaultdict(initDefaultDict)
 
-    with open(path, "r+b") as f:
-        _ = f.seek(start)
-        for line in tqdm(f):
-            start += len(line)
-            if start > end:
     disable()
     with open(path, "rb") as f:
+        position = start
+        mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+        _ = mm.seek(start)
+        while mm.tell() < end:
+            line = mm.readline()
+            position += len(line)
+            if position > end:
                 break
 
             try:
@@ -83,6 +85,7 @@ def processChunk(path: str, start: int, end: int):
             stats[1] = max(stats[1], temperature)
             stats[2] += temperature
             stats[3] += 1
+        mm.close()
     enable()
 
     return stationDict
