@@ -95,7 +95,6 @@ def mergeChunkResults(cpuCount: int, startEnd: list[tuple[str, int, int]]):
     results: dict[str, list[float]] = dict()
     for chunkResult in chunkResults:
         for stationName, stats in chunkResult.items():
-            stationName = stationName.decode("utf-8")
             if stationName not in results:
                 results[stationName] = stats
                 continue
@@ -116,6 +115,7 @@ def createOutput(stationDict: dict[str, list[float]]):
         maxVal /= 10.0
         # meanVal = ceilDiv(total, count) / 10.0
         meanVal = (total / count) / 10.0
+        stationName = stationName.decode("utf-8")
         output.append(f"{stationName}={minVal:.1f}/{meanVal:.1f}/{maxVal:.1f}")
 
     return "{" + ", ".join(output) + "}"
