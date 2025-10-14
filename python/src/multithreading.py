@@ -1,12 +1,10 @@
-import os
-import multiprocessing as mp
-from gc import enable, disable
 import mmap
-
-from collections import defaultdict
+import multiprocessing as mp
+import os
 import time
+from collections import defaultdict
 from collections.abc import ByteString
-from tqdm import tqdm
+from gc import disable, enable
 
 
 def getFileChunks(
@@ -102,7 +100,7 @@ def mergeChunkResults(cpuCount: int, startEnd: list[tuple[str, int, int]]):
     with mp.Pool(cpuCount) as pool:
         chunkResults = pool.starmap(processChunk, startEnd)
 
-    results: dict[str, list[float]] = dict()
+    results: dict[ByteString, list[float]] = dict()
     for chunkResult in chunkResults:
         for stationName, stats in chunkResult.items():
             if stationName not in results:
