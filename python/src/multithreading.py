@@ -27,6 +27,7 @@ def getFileChunks(
 
     startEnd: list[tuple[str, int, int]] = list()
     with open(filePath, "r+b") as f:
+    with open(filePath, "rb") as f:
 
         def isNewLine(position: int) -> bool:
             if position == 0:
@@ -67,6 +68,7 @@ def processChunk(path: str, start: int, end: int):
             start += len(line)
             if start > end:
     disable()
+    with open(path, "rb") as f:
                 break
 
             try:
