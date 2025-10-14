@@ -5,7 +5,7 @@ import mmap
 
 from collections import defaultdict
 import time
-from typing import ByteString
+from collections.abc import ByteString
 from tqdm import tqdm
 
 
