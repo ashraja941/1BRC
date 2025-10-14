@@ -1,5 +1,6 @@
 import os
 import multiprocessing as mp
+from gc import enable, disable
 
 from collections import defaultdict
 import time
@@ -65,6 +66,7 @@ def processChunk(path: str, start: int, end: int):
         for line in tqdm(f):
             start += len(line)
             if start > end:
+    disable()
                 break
 
             try:
@@ -79,6 +81,7 @@ def processChunk(path: str, start: int, end: int):
             stats[1] = max(stats[1], temperature)
             stats[2] += temperature
             stats[3] += 1
+    enable()
 
     return stationDict
 
