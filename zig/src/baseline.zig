@@ -82,7 +82,7 @@ pub fn run(allocator: std.mem.Allocator) !i64 {
     for (entries.items) |entry| {
         const avg = entry.val[2] / entry.val[3];
         // print("{s}={d:.1}/{d:.1}/{d:.1}\n", .{ entry.key, entry.val[0], entry.val[1], avg });
-        try writer.print("{s}={d:.1}/{d:.1}/{d:.1},", .{ entry.key, entry.val[0], avg, entry.val[1] });
+        try writer.print("{s}={d:.1}/{d:.1}/{d:.1}, ", .{ entry.key, entry.val[0], avg, entry.val[1] });
         try writer.flush();
     }
     try writer.print("}}", .{});
