@@ -41,8 +41,8 @@ fn deinitHashMap(allocator: std.mem.Allocator, hashMap: *std.StringHashMap([4]f6
     hashMap.deinit();
 }
 
-pub fn run() !void {
-    print("starting...\n", .{});
+pub fn run(allocator: std.mem.Allocator) !i64 {
+    // print("starting...\n", .{});
 
     const startTime = std.time.milliTimestamp();
     const cwd = std.fs.cwd();
@@ -51,10 +51,6 @@ pub fn run() !void {
 
     const outFile = try cwd.createFile("../data/zig-output-latest.txt", .{});
     defer outFile.close();
-
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
 
     var hashMap = std.StringHashMap([4]f64).init(allocator);
     defer deinitHashMap(allocator, &hashMap);
@@ -92,5 +88,6 @@ pub fn run() !void {
     try writer.print("}}", .{});
     const endTime = std.time.milliTimestamp();
     const duration = @divFloor((endTime - startTime), 1000);
-    print("Execution time: {d} seconds\n", .{duration});
+    // print("Execution time: {d} seconds\n", .{duration});
+    return duration;
 }
