@@ -1,5 +1,5 @@
 const std = @import("std");
-const Pool = std.Thread.Pool;
+const compare = @import("scripts/compare.zig");
 const expect = std.testing.expect;
 
 const HashMapEntry = struct {
@@ -16,6 +16,13 @@ fn deinitHashMap(allocator: std.mem.Allocator, hashMap: *std.StringHashMap([4]f6
         allocator.free(entry.key_ptr.*);
     }
     hashMap.deinit();
+}
+
+fn displayHashMap(hashMap: std.StringHashMap([4]f64)) void {
+    var it = hashMap.iterator();
+    while (it.next()) |entry| {
+        std.debug.print("{s} : {any}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+    }
 }
 
 /// Compare the Hashmaps based on the key values
@@ -90,20 +97,22 @@ fn getChunks(allocator: std.mem.Allocator, filePath: []const u8, numChunks: u8) 
     return result[0..];
 }
 
-fn processLine(allocator: std.mem.Allocator, line: []const u8, hashMap: *std.StringHashMap([4]f64)) void {
+fn processLine(allocator: std.mem.Allocator, line: []const u8, hashMap: *const *std.StringHashMap([4]f64)) !void {
     var iterator = std.mem.splitScalar(u8, line, ';');
     const name = iterator.next().?;
     const temp_str = iterator.next().?;
-    const temp = std.fmt.parseFloat(f64, temp_str) catch 0.0;
+    // std.debug.print("read : {any}\n", .{temp_str});
+    // We remove the last value as it is a control value because of \r\n most likely
+    const temp = try std.fmt.parseFloat(f64, temp_str[0..(temp_str.len - 1)]);
 
-    if (hashMap.getPtr(name)) |v| {
+    if (hashMap.*.getPtr(name)) |v| {
         v[0] = @min(v[0], temp); // min
         v[1] = @max(v[1], temp); // max
         v[2] += temp; // sum
         v[3] += 1; // count
     } else {
         const nameDup = allocator.dupe(u8, name) catch "ERROR";
-        hashMap.put(nameDup, [4]f64{ temp, temp, temp, 1 }) catch void;
+        try hashMap.*.put(nameDup, [4]f64{ temp, temp, temp, 1 });
     }
 
     // // Debug print
@@ -114,7 +123,7 @@ fn processLine(allocator: std.mem.Allocator, line: []const u8, hashMap: *std.Str
 }
 
 /// Process a chunk of given range. Remember to deinit hashmap later
-fn processChunk(allocator: std.mem.Allocator, filePath: []const u8, range: Tuple, hashMap: *std.StringHashMap([4]f64)) void {
+fn processChunk(allocator: std.mem.Allocator, filePath: []const u8, range: Tuple, hashMap: *std.StringHashMap([4]f64)) !void {
     const cwd = std.fs.cwd();
     const file = cwd.openFile(filePath, .{ .mode = .read_only }) catch return;
     defer file.close();
@@ -128,7 +137,7 @@ fn processChunk(allocator: std.mem.Allocator, filePath: []const u8, range: Tuple
         const line = reader.takeDelimiterExclusive('\n') catch break;
         position += line.len;
         if (position > range.end) break;
-        processLine(allocator, line, &hashMap);
+        try processLine(allocator, line, &hashMap);
     }
 }
 
@@ -140,18 +149,20 @@ fn multithreadProcessChunks(
     cpuCount: u8,
     ranges: []Tuple,
     filePath: []const u8,
-) *std.StringHashMap([4]f64) {
+) !*std.StringHashMap([4]f64) {
     var aa = std.heap.ArenaAllocator.init(allocator);
     defer aa.deinit();
     const arena = aa.allocator();
 
-    var pool = try arena.alloc(std.Thread, cpuCount);
+    const pool = try arena.alloc(std.Thread, cpuCount);
     defer arena.free(pool);
 
-    var hashMapArray: [cpuCount]*std.StringHashMap([4]f64) = undefined;
+    var hashMapArray = try std.ArrayList(std.StringHashMap([4]f64)).initCapacity(allocator, 4);
+    defer hashMapArray.deinit(allocator);
+
     for (pool, ranges, 0..) |*thread, range, i| {
-        hashMapArray[i] = std.StringHashMap([4]f64).init(allocator);
-        thread.* = try std.Thread.spawn(.{}, processChunk, .{ allocator, filePath, range, hashMapArray[i] });
+        try hashMapArray.append(allocator, std.StringHashMap([4]f64).init(allocator));
+        thread.* = try std.Thread.spawn(.{}, processChunk, .{ allocator, filePath, range, &hashMapArray.items[i] });
     }
 
     for (pool) |thread| {
@@ -159,7 +170,7 @@ fn multithreadProcessChunks(
     }
     var hashMap = std.StringHashMap([4]f64).init(allocator);
 
-    for (hashMapArray) |currentHash| {
+    for (hashMapArray.items) |currentHash| {
         var it = currentHash.iterator();
         while (it.next()) |kv| {
             if (hashMap.getPtr(kv.key_ptr.*)) |v| {
@@ -187,8 +198,8 @@ pub fn run(allocator: std.mem.Allocator) !i64 {
     const outFile = try cwd.createFile("../data/zig-output-latest.txt", .{});
     defer outFile.close();
 
-    var hashMap = std.StringHashMap([4]f64).init(allocator);
-    defer deinitHashMap(allocator, &hashMap);
+    // var hashMap = std.StringHashMap([4]f64).init(allocator);
+    // defer deinitHashMap(allocator, &hashMap);
 
     // var buf: [1024]u8 = undefined;
     // var fileReader = file.reader(&buf);
@@ -199,12 +210,18 @@ pub fn run(allocator: std.mem.Allocator) !i64 {
     const writer = &fileWriter.interface;
     try writer.print("{{", .{});
 
-    // TODO: Multithreaded processing logic
+    const cpuCountUsize = try std.Thread.getCpuCount();
+    const cpuCount: u8 = @intCast(@min(cpuCountUsize, 4));
+
+    const result = try getChunks(allocator, "../data/measurements.txt", cpuCount);
+    defer allocator.free(result);
+    const hashMapMulti = try multithreadProcessChunks(allocator, cpuCount, result, "../data/measurements.txt");
+    // defer deinitHashMap(allocator, hashMapMulti);
 
     var entries = try std.ArrayList(HashMapEntry).initCapacity(allocator, 20);
     defer entries.deinit(allocator);
 
-    var it = hashMap.iterator();
+    var it = hashMapMulti.iterator();
     while (it.next()) |entry| {
         try entries.append(allocator, .{ .key = entry.key_ptr.*, .val = entry.value_ptr.* });
     }
@@ -221,7 +238,21 @@ pub fn run(allocator: std.mem.Allocator) !i64 {
     const endTime = std.time.milliTimestamp();
     const duration = @divFloor((endTime - startTime), 1000);
     // print("Execution time: {d} seconds\n", .{duration});
+
+    const same = try compare.compareFiles("../data/answers.txt", "../data/zig-output-latest.txt");
+    if (!same) {
+        return error.FileMismatch;
+    }
+
     return duration;
+}
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    const duration = try run(allocator);
+    std.debug.print("{d}", .{duration});
 }
 
 test "ensure utf-8" {
@@ -235,26 +266,50 @@ test "ensure utf-8" {
 
     const line = try reader.takeDelimiterExclusive('\n');
 
-    if (!std.unicode.utf8ValidateSlice(line)) {
-        std.debug.print("File is not valid UTF-8\n", .{});
-    } else {
-        std.debug.print("File is valid UTF-8\n", .{});
-    }
+    try expect(std.unicode.utf8ValidateSlice(line));
 }
 
 test "split chunks" {
     const filePath = "../data/10mil.txt";
     const allocator = std.testing.allocator;
-    //
+
+    // python output
     //(3, [('../data/10mil.txt', 0, 45982765), ('../data/10mil.txt', 45982765, 91965531), ('../data/10mil.txt', 91965531, 137948294), ('../data/10mil.txt', 137948294, 137948310)])
+
     const result = try getChunks(allocator, filePath, 3);
     defer allocator.free(result);
 
     for (result) |tuple| {
-        std.debug.print("{d}, {d}\n", .{ tuple.start, tuple.end });
+        // std.debug.print("{d}, {d}\n", .{ tuple.start, tuple.end });
+        _ = tuple;
     }
 
     const file = try std.fs.cwd().openFile(filePath, .{});
     defer file.close();
     try expect(try isNewLine(file, 45982764));
+}
+
+test "linearly process chunks of small data" {
+    const filePath = "../data/100test.txt";
+    const allocator = std.testing.allocator;
+
+    const result = try getChunks(allocator, filePath, 4);
+    defer allocator.free(result);
+
+    // for (result) |tuple| {
+    //     // std.debug.print("{d}, {d}\n", .{ tuple.start, tuple.end });
+    //
+    //     var hashMap = std.StringHashMap([4]f64).init(allocator);
+    //     defer deinitHashMap(allocator, &hashMap);
+    //
+    //     try processChunk(allocator, filePath, tuple, &hashMap);
+    //     displayHashMap(hashMap);
+    // }
+
+    const hashMapMulti = try multithreadProcessChunks(allocator, 4, result, filePath);
+    defer deinitHashMap(allocator, hashMapMulti);
+    displayHashMap(hashMapMulti.*);
+
+    const file = try std.fs.cwd().openFile(filePath, .{});
+    defer file.close();
 }
