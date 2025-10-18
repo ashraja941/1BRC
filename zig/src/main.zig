@@ -1,5 +1,5 @@
 const std = @import("std");
-const time = std.time;
+const compare = @import("compare.zig");
 const baseline = @import("baseline.zig");
 
 const print = std.debug.print;
@@ -23,6 +23,11 @@ pub fn main() !void {
     var sum: f64 = 0.0;
     for (results[1..4]) |result| {
         sum += result;
+    }
+
+    const same = try compare.compareFiles("../data/answers.txt", "../data/zig-output-latest.txt");
+    if (!same) {
+        return error.FileMismatch;
     }
 
     print("Average duration: {}ms\n", .{sum / 3.0});

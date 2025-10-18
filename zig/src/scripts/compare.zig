@@ -1,12 +1,13 @@
 const std = @import("std");
+const expect = std.testing.expect;
 
-pub fn main() !void {
+pub fn compareFiles(file1path: []const u8, file2path: []const u8) !bool {
     const cwd = std.fs.cwd();
 
-    const file1 = try cwd.openFile("../data/answers.txt", .{ .mode = .read_only });
+    const file1 = try cwd.openFile(file1path, .{ .mode = .read_only });
     defer file1.close();
 
-    const file2 = try cwd.openFile("../data/zig-output-latest.txt", .{ .mode = .read_only });
+    const file2 = try cwd.openFile(file2path, .{ .mode = .read_only });
     defer file2.close();
 
     var buf1: [1024]u8 = undefined;
@@ -38,4 +39,11 @@ pub fn main() !void {
     } else {
         std.debug.print("Files are identical\n", .{});
     }
+
+    return same;
+}
+
+test "pass files as input" {
+    const same = try compareFiles("../data/answers.txt", "../data/python-output-latest.txt");
+    try expect(same);
 }
