@@ -1,5 +1,6 @@
 const std = @import("std");
 const Pool = std.Thread.Pool;
+const expect = std.testing.expect;
 
 const HashMapEntry = struct {
     key: []const u8,
@@ -22,6 +23,7 @@ fn lessThan(_: void, lhs: HashMapEntry, rhs: HashMapEntry) bool {
     return std.mem.lessThan(u8, lhs.key, rhs.key);
 }
 
+/// Helper function to check if a given byte is part of a new line
 fn isNewLine(file: std.fs.File, position: u64) !bool {
     if (position == 0) return true;
 
@@ -31,6 +33,7 @@ fn isNewLine(file: std.fs.File, position: u64) !bool {
     return std.mem.eql(u8, &byte, "\n");
 }
 
+/// Helper function to find the next new line
 fn nextLine(file: std.fs.File, position: u64) !u64 {
     try file.seekTo(position);
     var pos = position;
@@ -87,11 +90,11 @@ fn getChunks(allocator: std.mem.Allocator, filePath: []const u8, numChunks: u8) 
     return result[0..];
 }
 
-fn processLine(allocator: std.mem.Allocator, line: []const u8, hashMap: *std.StringHashMap([4]f64)) !void {
+fn processLine(allocator: std.mem.Allocator, line: []const u8, hashMap: *std.StringHashMap([4]f64)) void {
     var iterator = std.mem.splitScalar(u8, line, ';');
     const name = iterator.next().?;
     const temp_str = iterator.next().?;
-    const temp = try std.fmt.parseFloat(f64, temp_str);
+    const temp = std.fmt.parseFloat(f64, temp_str) catch 0.0;
 
     if (hashMap.getPtr(name)) |v| {
         v[0] = @min(v[0], temp); // min
@@ -99,8 +102,8 @@ fn processLine(allocator: std.mem.Allocator, line: []const u8, hashMap: *std.Str
         v[2] += temp; // sum
         v[3] += 1; // count
     } else {
-        const nameDup = try allocator.dupe(u8, name);
-        try hashMap.put(nameDup, [4]f64{ temp, temp, temp, 1 });
+        const nameDup = allocator.dupe(u8, name) catch "ERROR";
+        hashMap.put(nameDup, [4]f64{ temp, temp, temp, 1 }) catch void;
     }
 
     // // Debug print
@@ -108,6 +111,69 @@ fn processLine(allocator: std.mem.Allocator, line: []const u8, hashMap: *std.Str
     // print("Name: {s}, min={d}, max={d}, sum={d}, count={d}\n", .{
     //     name, arr[0], arr[1], arr[2], arr[3],
     // });
+}
+
+/// Process a chunk of given range. Remember to deinit hashmap later
+fn processChunk(allocator: std.mem.Allocator, filePath: []const u8, range: Tuple, hashMap: *std.StringHashMap([4]f64)) void {
+    const cwd = std.fs.cwd();
+    const file = cwd.openFile(filePath, .{ .mode = .read_only }) catch return;
+    defer file.close();
+
+    var buf: [256]u8 = undefined;
+    var fileReader = file.reader(&buf);
+    const reader = &fileReader.interface;
+
+    var position: u64 = range.start;
+    while (true) {
+        const line = reader.takeDelimiterExclusive('\n') catch break;
+        position += line.len;
+        if (position > range.end) break;
+        processLine(allocator, line, &hashMap);
+    }
+}
+
+/// Create a pool of threads and process each chunk
+/// create threads and call the processChunk function on them
+/// go through the returened hashmaps and create 1 big hashmap
+fn multithreadProcessChunks(
+    allocator: std.mem.Allocator,
+    cpuCount: u8,
+    ranges: []Tuple,
+    filePath: []const u8,
+) *std.StringHashMap([4]f64) {
+    var aa = std.heap.ArenaAllocator.init(allocator);
+    defer aa.deinit();
+    const arena = aa.allocator();
+
+    var pool = try arena.alloc(std.Thread, cpuCount);
+    defer arena.free(pool);
+
+    var hashMapArray: [cpuCount]*std.StringHashMap([4]f64) = undefined;
+    for (pool, ranges, 0..) |*thread, range, i| {
+        hashMapArray[i] = std.StringHashMap([4]f64).init(allocator);
+        thread.* = try std.Thread.spawn(.{}, processChunk, .{ allocator, filePath, range, hashMapArray[i] });
+    }
+
+    for (pool) |thread| {
+        thread.join();
+    }
+    var hashMap = std.StringHashMap([4]f64).init(allocator);
+
+    for (hashMapArray) |currentHash| {
+        var it = currentHash.iterator();
+        while (it.next()) |kv| {
+            if (hashMap.getPtr(kv.key_ptr.*)) |v| {
+                v[0] = @min(v[0], kv.value_ptr.*[0]);
+                v[1] = @max(v[1], kv.value_ptr.*[1]);
+                v[2] += kv.value_ptr.*[2];
+                v[3] += kv.value_ptr.*[3];
+            } else {
+                try hashMap.put(kv.key_ptr.*, kv.value_ptr.*);
+            }
+        }
+    }
+
+    return &hashMap;
 }
 
 /// Runs the multithreaded implmentation of the 1brc challenge,
@@ -187,4 +253,8 @@ test "split chunks" {
     for (result) |tuple| {
         std.debug.print("{d}, {d}\n", .{ tuple.start, tuple.end });
     }
+
+    const file = try std.fs.cwd().openFile(filePath, .{});
+    defer file.close();
+    try expect(try isNewLine(file, 45982764));
 }
