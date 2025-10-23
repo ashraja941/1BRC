@@ -61,6 +61,25 @@ fn getChunks(allocator: std.mem.Allocator, file: std.fs.File, numChunks: u8) ![]
     return results[0..];
 }
 
+fn processLine(line: []const u8, hashMap: *std.StringHashMap([4]f64)) !void {
+    const pos = std.mem.indexOfScalarPos(u8, line, 0, ';').?;
+    const station = line[0..pos];
+    const tempStr = line[pos + 1 ..];
+    const tempNumber = std.fmt.parseFloat(f64, tempStr) catch return error.InvalidNumber;
+
+    const storeValue = hashMap.*.getOrPut(station) catch unreachable;
+    if (!storeValue.found_existing) {
+        storeValue.value_ptr.* = [4]f64{ tempNumber, tempNumber, tempNumber, 1 };
+    } else {
+        storeValue.value_ptr.* = .{
+            @min(storeValue.value_ptr.*[0], tempNumber),
+            @max(storeValue.value_ptr.*[1], tempNumber),
+            storeValue.value_ptr.*[2] + tempNumber,
+            storeValue.value_ptr.*[3] + 1,
+        };
+    }
+}
+
 fn run(allocator: std.mem.Allocator, inFilePath: []const u8, outFilePath: []const u8) !i64 {
     // const startTime = std.time.milliTimestamp();
     var inFile = try std.fs.cwd().openFile(inFilePath, .{ .mode = .read_only });
@@ -71,7 +90,7 @@ fn run(allocator: std.mem.Allocator, inFilePath: []const u8, outFilePath: []cons
     const cpuCount: u8 = @intCast(@min(cpuCountUsize, 8));
 
     const result = try getChunks(allocator, inFile, cpuCount);
-    _ = result;
+    defer allocator.free(result);
 
     var outFile = try std.fs.cwd().createFile(outFilePath, .{});
     defer outFile.close();
@@ -109,4 +128,19 @@ test "split chunks" {
     // const file = try std.fs.cwd().openFile(filePath, .{});
     // defer file.close();
     // try expect(try isNewLine(file, 45982764));
+}
+
+test "process line" {
+    const allocator = std.testing.allocator;
+    var hashMap = std.StringHashMap([4]f64).init(allocator);
+    defer hashMap.deinit();
+
+    try processLine("London;0.1", &hashMap);
+    try processLine("London;1.2", &hashMap);
+
+    const arr = hashMap.get("London").?;
+    try expect(arr[0] == 0.1);
+    try expect(arr[1] == 1.2);
+    try expect(arr[2] == 1.3);
+    try expect(arr[3] == 2);
 }
