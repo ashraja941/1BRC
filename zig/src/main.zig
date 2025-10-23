@@ -1,6 +1,7 @@
 const std = @import("std");
-const compare = @import("compare.zig");
+const compare = @import("scripts/compare.zig");
 const baseline = @import("baseline.zig");
+const multithreaded = @import("multithreaded.zig");
 
 const print = std.debug.print;
 
@@ -14,7 +15,9 @@ pub fn main() !void {
     print("Starting...\n", .{});
 
     for (0..5) |i| {
-        const duration = try baseline.run(allocator);
+        // const duration = try baseline.run(allocator);
+        const duration = try multithreaded.run(allocator, "../data/measurements.txt", "../data/zig-output-latest.txt");
+
         results[i] = @floatFromInt(duration);
         print("completed {d} in {}ms\n", .{ i + 1, duration });
     }

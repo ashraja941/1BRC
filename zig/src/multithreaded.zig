@@ -2,6 +2,13 @@ const std = @import("std");
 const print = std.debug.print;
 const expect = std.testing.expect;
 
+const compare = @import("scripts/compare.zig");
+
+const HashMapEntry = struct {
+    key: []const u8,
+    val: [4]f64,
+};
+
 const Tuple = struct {
     start: u64,
     end: u64,
@@ -14,6 +21,11 @@ fn isNewLine(file: std.fs.File, position: u64) !bool {
     var byte: [1]u8 = undefined;
     _ = try file.read(&byte);
     return std.mem.eql(u8, &byte, "\n");
+}
+
+/// Compare the Hashmaps based on the key values
+fn lessThan(_: void, lhs: HashMapEntry, rhs: HashMapEntry) bool {
+    return std.mem.lessThan(u8, lhs.key, rhs.key);
 }
 
 /// Get the start and end position of chunks of the file
@@ -61,13 +73,17 @@ fn getChunks(allocator: std.mem.Allocator, file: std.fs.File, numChunks: u8) ![]
     return results[0..];
 }
 
+/// Process a single line of the file
 fn processLine(line: []const u8, hashMap: *std.StringHashMap([4]f64)) !void {
     const pos = std.mem.indexOfScalarPos(u8, line, 0, ';').?;
     const station = line[0..pos];
     const tempStr = line[pos + 1 ..];
     const tempNumber = std.fmt.parseFloat(f64, tempStr) catch return error.InvalidNumber;
 
-    const storeValue = hashMap.*.getOrPut(station) catch unreachable;
+    const key_copy = try hashMap.allocator.dupe(u8, station);
+    const storeValue = try hashMap.getOrPut(key_copy);
+    // print("{s}\n", .{station});
+    // const storeValue = try hashMap.getOrPut(station);
     if (!storeValue.found_existing) {
         storeValue.value_ptr.* = [4]f64{ tempNumber, tempNumber, tempNumber, 1 };
     } else {
@@ -80,20 +96,115 @@ fn processLine(line: []const u8, hashMap: *std.StringHashMap([4]f64)) !void {
     }
 }
 
-fn run(allocator: std.mem.Allocator, inFilePath: []const u8, outFilePath: []const u8) !i64 {
-    // const startTime = std.time.milliTimestamp();
+fn processChunk(allocator: std.mem.Allocator, file: std.fs.File, range: Tuple, mapStore: *std.ArrayList(std.StringHashMap([4]f64))) !void {
+    var buffer: [256]u8 = undefined;
+    var FileReader = file.reader(&buffer);
+    const reader = &FileReader.interface;
+
+    var localHashMap = std.StringHashMap([4]f64).init(allocator);
+
+    var position: u64 = range.start;
+    while (true) {
+        const line = reader.takeDelimiterExclusive('\n') catch break;
+        position += line.len;
+        if (position > range.end) break;
+        try processLine(line, &localHashMap);
+    }
+
+    mapStore.*.append(allocator, localHashMap) catch unreachable;
+}
+
+fn mergeHashMaps(mapStore: *std.ArrayList(std.StringHashMap([4]f64)), globalHash: *std.StringHashMap([4]f64)) !void {
+    for (mapStore.*.items) |currentHash| {
+        var it = currentHash.iterator();
+
+        while (it.next()) |record| {
+            const storeValue = globalHash.*.getOrPut(record.key_ptr.*) catch unreachable;
+            if (!storeValue.found_existing) {
+                storeValue.value_ptr.* = record.value_ptr.*;
+            } else {
+                storeValue.value_ptr.* = .{
+                    @min(storeValue.value_ptr.*[0], record.value_ptr.*[0]),
+                    @max(storeValue.value_ptr.*[1], record.value_ptr.*[1]),
+                    storeValue.value_ptr.*[2] + record.value_ptr.*[2],
+                    storeValue.value_ptr.*[3] + record.value_ptr.*[3],
+                };
+            }
+        }
+    }
+}
+
+fn multithreadProcessChunks(allocator: std.mem.Allocator, file: std.fs.File, ranges: []Tuple, cpuCount: u8, mapStore: *std.ArrayList(std.StringHashMap([4]f64)), globalHash: *std.StringHashMap([4]f64)) !void {
+    var threadSafeAllocator = std.heap.ThreadSafeAllocator{ .child_allocator = allocator };
+    const threadAllocator = threadSafeAllocator.allocator();
+
+    var threads: [20]std.Thread = undefined;
+
+    for (ranges, 0..) |range, i| {
+        threads[i] = try std.Thread.spawn(.{}, processChunk, .{ threadAllocator, file, range, mapStore });
+    }
+
+    var i: usize = 0;
+    while (i < cpuCount) : (i += 1) {
+        threads[i].join();
+    }
+
+    try mergeHashMaps(mapStore, globalHash);
+}
+
+pub fn run(allocator: std.mem.Allocator, inFilePath: []const u8, outFilePath: []const u8) !i64 {
+    const startTime = std.time.milliTimestamp();
     var inFile = try std.fs.cwd().openFile(inFilePath, .{ .mode = .read_only });
     defer inFile.close();
+
+    var outFile = try std.fs.cwd().createFile(outFilePath, .{});
+    defer outFile.close();
+
+    var outBuf: [1024]u8 = undefined;
+    var fileWriter = outFile.writer(&outBuf);
+    const writer = &fileWriter.interface;
+    try writer.print("{{", .{});
 
     // we only want to use upto a maximum of 8 threads
     const cpuCountUsize: usize = try std.Thread.getCpuCount();
     const cpuCount: u8 = @intCast(@min(cpuCountUsize, 8));
 
+    var mapStore = try std.ArrayList(std.StringHashMap([4]f64)).initCapacity(allocator, 20);
+    defer mapStore.deinit(allocator);
+
+    var globalHashMap = std.StringHashMap([4]f64).init(allocator);
+    defer globalHashMap.deinit();
+
     const result = try getChunks(allocator, inFile, cpuCount);
     defer allocator.free(result);
+    try multithreadProcessChunks(allocator, inFile, result, cpuCount, &mapStore, &globalHashMap);
 
-    var outFile = try std.fs.cwd().createFile(outFilePath, .{});
-    defer outFile.close();
+    var entries = try std.ArrayList(HashMapEntry).initCapacity(allocator, 20);
+    defer entries.deinit(allocator);
+
+    var it = globalHashMap.iterator();
+    while (it.next()) |entry| {
+        try entries.append(allocator, .{ .key = entry.key_ptr.*, .val = entry.value_ptr.* });
+    }
+
+    std.mem.sort(HashMapEntry, entries.items, {}, lessThan);
+
+    for (entries.items) |entry| {
+        const avg = entry.val[2] / entry.val[3];
+        // print("{s}={d:.1}/{d:.1}/{d:.1}\n", .{ entry.key, entry.val[0], entry.val[1], avg });
+        try writer.print("{s}={d:.1}/{d:.1}/{d:.1}, ", .{ entry.key, entry.val[0], avg, entry.val[1] });
+        try writer.flush();
+    }
+    try writer.print("}}", .{});
+
+    const endTime = std.time.milliTimestamp();
+    const duration = @divFloor((endTime - startTime), 1000);
+    print("Execution time: {d} seconds\n", .{duration});
+
+    const same = try compare.compareFiles("../data/answers.txt", "../data/zig-output-latest.txt");
+    if (!same) {
+        return error.FileMismatch;
+    }
 
     return 0;
 }
@@ -102,7 +213,8 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    const duration = try run(allocator, "../data/measurements.txt", "../data/zig-output-latest.txt");
+    // const duration = try run(allocator, "../data/measurements.txt", "../data/zig-output-latest.txt");
+    const duration = try run(allocator, "../data/10mil.txt", "../data/zig-output-latest.txt");
     print("{d} ms\n", .{duration});
 }
 
