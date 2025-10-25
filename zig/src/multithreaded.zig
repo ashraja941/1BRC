@@ -80,8 +80,7 @@ fn processLine(line: []const u8, hashMap: *std.StringHashMap([4]f64)) !void {
     const tempStr = line[pos + 1 ..];
     const tempNumber = std.fmt.parseFloat(f64, tempStr) catch return error.InvalidNumber;
 
-    const key_copy = try hashMap.allocator.dupe(u8, station);
-    const storeValue = try hashMap.getOrPut(key_copy);
+    const storeValue = try hashMap.getOrPut(station);
     // print("{s}\n", .{station});
     // const storeValue = try hashMap.getOrPut(station);
     if (!storeValue.found_existing) {
@@ -98,18 +97,26 @@ fn processLine(line: []const u8, hashMap: *std.StringHashMap([4]f64)) !void {
 
 fn processChunk(allocator: std.mem.Allocator, filePath: []const u8, range: Tuple, mapStore: *std.ArrayList(std.StringHashMap([4]f64))) !void {
     const file = try std.fs.cwd().openFile(filePath, .{ .mode = .read_only });
-
-    var buffer: [256]u8 = undefined;
-    var FileReader = file.reader(&buffer);
-    const reader = &FileReader.interface;
+    defer file.close();
 
     var localHashMap = std.StringHashMap([4]f64).init(allocator);
+    const chunk_size = range.end - range.start;
+    if (chunk_size == 0) {
+        mapStore.*.append(allocator, localHashMap) catch unreachable;
+        return;
+    }
 
-    var position: u64 = range.start;
-    while (true) {
-        const line = reader.takeDelimiterExclusive('\n') catch break;
-        position += line.len;
-        if (position > range.end) break;
+    // Read the entire chunk into a buffer.
+    // The buffer is intentionally not freed. The string slices (keys) in the
+    // hash map point to this buffer. The OS will reclaim the memory on exit.
+    // This avoids copying strings and improves performance.
+    const buffer = try allocator.alloc(u8, chunk_size);
+    try file.seekTo(range.start);
+    const bytes_read = try file.read(buffer);
+
+    var line_iterator = std.mem.splitScalar(u8, buffer[0..bytes_read], '\n');
+    while (line_iterator.next()) |line| {
+        if (line.len == 0) continue;
         try processLine(line, &localHashMap);
     }
 
@@ -216,8 +223,8 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    // const duration = try run(allocator, "../data/measurements.txt", "../data/zig-output-latest.txt");
-    const duration = try run(allocator, "../data/10mil.txt", "../data/zig-output-latest.txt");
+    const duration = try run(allocator, "../data/measurements.txt", "../data/zig-output-latest.txt");
+    // const duration = try run(allocator, "../data/10mil.txt", "../data/zig-output-latest.txt");
     print("{d} ms\n", .{duration});
 }
 
