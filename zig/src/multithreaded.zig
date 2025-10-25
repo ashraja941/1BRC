@@ -96,7 +96,9 @@ fn processLine(line: []const u8, hashMap: *std.StringHashMap([4]f64)) !void {
     }
 }
 
-fn processChunk(allocator: std.mem.Allocator, file: std.fs.File, range: Tuple, mapStore: *std.ArrayList(std.StringHashMap([4]f64))) !void {
+fn processChunk(allocator: std.mem.Allocator, filePath: []const u8, range: Tuple, mapStore: *std.ArrayList(std.StringHashMap([4]f64))) !void {
+    const file = try std.fs.cwd().openFile(filePath, .{ .mode = .read_only });
+
     var buffer: [256]u8 = undefined;
     var FileReader = file.reader(&buffer);
     const reader = &FileReader.interface;
@@ -134,14 +136,14 @@ fn mergeHashMaps(mapStore: *std.ArrayList(std.StringHashMap([4]f64)), globalHash
     }
 }
 
-fn multithreadProcessChunks(allocator: std.mem.Allocator, file: std.fs.File, ranges: []Tuple, cpuCount: u8, mapStore: *std.ArrayList(std.StringHashMap([4]f64)), globalHash: *std.StringHashMap([4]f64)) !void {
+fn multithreadProcessChunks(allocator: std.mem.Allocator, filePath: []const u8, ranges: []Tuple, cpuCount: u8, mapStore: *std.ArrayList(std.StringHashMap([4]f64)), globalHash: *std.StringHashMap([4]f64)) !void {
     var threadSafeAllocator = std.heap.ThreadSafeAllocator{ .child_allocator = allocator };
     const threadAllocator = threadSafeAllocator.allocator();
 
-    var threads: [20]std.Thread = undefined;
+    var threads: [16]std.Thread = undefined;
 
     for (ranges, 0..) |range, i| {
-        threads[i] = try std.Thread.spawn(.{}, processChunk, .{ threadAllocator, file, range, mapStore });
+        threads[i] = try std.Thread.spawn(.{}, processChunk, .{ threadAllocator, filePath, range, mapStore });
     }
 
     var i: usize = 0;
@@ -167,7 +169,8 @@ pub fn run(allocator: std.mem.Allocator, inFilePath: []const u8, outFilePath: []
 
     // we only want to use upto a maximum of 8 threads
     const cpuCountUsize: usize = try std.Thread.getCpuCount();
-    const cpuCount: u8 = @intCast(@min(cpuCountUsize, 8));
+    const cpuCount: u8 = @intCast(@min(cpuCountUsize, 16));
+    print("Number of Threads being used : {d}\n", .{cpuCount});
 
     var mapStore = try std.ArrayList(std.StringHashMap([4]f64)).initCapacity(allocator, 20);
     defer mapStore.deinit(allocator);
@@ -177,7 +180,7 @@ pub fn run(allocator: std.mem.Allocator, inFilePath: []const u8, outFilePath: []
 
     const result = try getChunks(allocator, inFile, cpuCount);
     defer allocator.free(result);
-    try multithreadProcessChunks(allocator, inFile, result, cpuCount, &mapStore, &globalHashMap);
+    try multithreadProcessChunks(allocator, inFilePath, result, cpuCount, &mapStore, &globalHashMap);
 
     var entries = try std.ArrayList(HashMapEntry).initCapacity(allocator, 20);
     defer entries.deinit(allocator);
