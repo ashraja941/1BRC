@@ -30,6 +30,8 @@ Input is `City;Value` lines, output is min/mean/max per city.
 | 001 | python | 189.9260991414388 | multithreading |
 | 002 | python | 162.7257560888926 | multithreading + micro opts |
 | 003 | python | 29.86254239082336 | Polars |
+| 003 | zig | 400 | Baseline |
+| 003 | zig | 120 | Multithreading |
 
 
 ## Optimization Roadmap
@@ -64,6 +66,11 @@ I believe that a later version of python is working on removing the GIL in favor
 
 
 ### Zig
+#### Baseline
+Same logic as python baseline, is more efficient because of the compiled nature
+
+#### Multithreadiing
+This is pure multithreading, unlike python implementation, used mutex locks for accesssing the common data. Was unable to use mmap as the windows implmentation was not easily accesisble. 
 
 ## Data Management (git ignored due to size)
 
